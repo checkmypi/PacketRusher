@@ -296,7 +296,7 @@ void gtp5g_push_header(struct sk_buff *skb, struct gtp5g_pktinfo *pktinfo)
         dl_pdu_sess = skb_push(skb, sizeof(*dl_pdu_sess));
         /* Multiple of 4 (TODO include PPI) */
         dl_pdu_sess->length = 1;
-        dl_pdu_sess->pdu_sess_ctr.type_spare = 0; /* For DL */
+        dl_pdu_sess->pdu_sess_ctr.type_spare = PDU_SESSION_INFO_TYPE1; /* It's UL when used by PacketRusher */
         dl_pdu_sess->pdu_sess_ctr.u.dl.ppp_rqi_qfi = pktinfo->qfi;
         //TODO: PPI
         dl_pdu_sess->next_ehdr_type = 0; /* No more extension Header */
