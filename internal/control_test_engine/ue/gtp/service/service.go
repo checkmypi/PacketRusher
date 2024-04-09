@@ -46,6 +46,7 @@ func SetupGtpInterface(ue *context.UEContext, msg gnbContext.UEMessage) {
 	ueGnbIp := pduSession.GetGnbIp()
 	upfIp := pduSession.GnbPduSession.GetUpfIp()
 	ueIp := pduSession.GetIp()
+	qfi := pduSession.GnbPduSession.GetQosId()
 	msin := ue.GetMsin()
 	nameInf := fmt.Sprintf("val%s", msin)
 	vrfInf := fmt.Sprintf("vrf%s", msin)
@@ -88,16 +89,29 @@ func SetupGtpInterface(ue *context.UEContext, msg gnbContext.UEMessage) {
 	log.Debug("[UE][GTP] Setting up GTP Packet Detection Rule for ", strings.Join(cmdAddPdr, " "))
 
 	if err := gtpTunnel.CmdAddPDR(cmdAddPdr); err != nil {
-		log.Fatal("[GNB][GTP] Unable to create FAR: ", err)
+		log.Fatal("[GNB][GTP] Unable to create PDR: ", err)
 		return
 	}
 
 	cmdAddPdr = []string{nameInf, "2", "--pcd", "2", "--ue-ipv4", ueIp, "--far-id", "2"}
+
+
+	cmdAddQer := []string{nameInf, "1", "--qfi", strconv.Itoa(int(qfi))}
+	if qfi > 0 {
+		log.Debug("[UE][GTP] Setting Up QFI", strings.Join(cmdAddQer, " "))
+	        if err := gtpTunnel.CmdAddQER(cmdAddQer); err != nil {
+		     log.Fatal("[UE][GTP] Unable to create QER:", err)
+		     return
+	        }
+		cmdAddPdr = append(cmdAddPdr, "--qer-id", strconv.Itoa(int(qfi)))
+	}
+
 	log.Debug("[UE][GTP] Setting Up GTP Packet Detection Rule for ", strings.Join(cmdAddPdr, " "))
 	if err := gtpTunnel.CmdAddPDR(cmdAddPdr); err != nil {
-		log.Fatal("[UE][GTP] Unable to create FAR ", err)
+		log.Fatal("[UE][GTP] Unable to create PDR:", err)
 		return
 	}
+
 
 	netUeIp := net.ParseIP(ueIp)
 	// add an IP address to a link device.
