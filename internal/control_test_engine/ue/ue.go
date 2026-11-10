@@ -161,6 +161,21 @@ func ueMgrHandler(msg procedures.UeTesterMessage, ue *context.UEContext) bool {
 			return loop
 		}
 		trigger.InitPduSessionRelease(ue, pdu)
+	case procedures.EstablishPDUSessionId:
+		if err := trigger.InitControlledPduSessionRequest(ue, msg.Param); err != nil {
+			log.Error(ue.LogTag()+" Cannot request PDU Session ", msg.Param, ": ", err)
+		}
+	case procedures.ReleasePDUSessionId:
+		pdu, err := ue.GetPduSession(msg.Param)
+		switch {
+		case err != nil:
+			log.Error(ue.LogTag()+" Cannot release unknown PDU Session ID ", msg.Param)
+		case pdu.RejectCause != "":
+			// The network has no rejected session: forget it locally.
+			ue.DeletePduSession(msg.Param)
+		default:
+			trigger.InitPduSessionRelease(ue, pdu)
+		}
 	case procedures.Idle:
 		// We switch UE to IDLE
 		ue.SetStateMM_IDLE()

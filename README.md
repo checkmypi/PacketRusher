@@ -169,7 +169,11 @@ sudo ./packetrusher --tunnel-backend userspace ue
 
 The actions are `inspect` (the default, of all the UEs without `--ue`), `wait` (until registered with its PDU
 sessions), `idle`, `reconnect`, `xn-handover` and `ng-handover` (to the `--target` gNB ID), `deregister` and
-`register`. `run-scenario` runs them in order from a JSON file, each step once the previous one completed:
+`register`. `pdu-establish` and `pdu-release` request and release the PDU session `--pdu-session` (by default
+the lowest free ID, or the lowest active or rejected session) of a registered, connected UE. A rejected
+establishment is not retried: `pdu-establish` fails with the 5GSM cause, and `pdu-release` then forgets the
+session. The state, address and reject cause of every session are in `pdu_sessions`. `run-scenario` runs the
+actions in order from a JSON file, each step once the previous one completed:
 
 ```json
 {"steps": [

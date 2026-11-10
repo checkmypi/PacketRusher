@@ -134,7 +134,13 @@ func (simulation *UESimulation) Send(message procedures.UeTesterMessage) bool {
 
 // Control runs a control socket action on the UE and reports the UE's status.
 func (simulation *UESimulation) Control(action, target string) (procedures.UeStatus, error) {
-	request := &procedures.ControlRequest{Action: action, Target: target, Reply: make(chan procedures.ControlReply, 1)}
+	return simulation.ControlPduSession(action, target, 0)
+}
+
+// ControlPduSession runs a control socket action on the UE, and on its PDU session
+// pduSession for pdu-establish and pdu-release, then reports the UE's status.
+func (simulation *UESimulation) ControlPduSession(action, target string, pduSession int) (procedures.UeStatus, error) {
+	request := &procedures.ControlRequest{Action: action, Target: target, PduSession: pduSession, Reply: make(chan procedures.ControlReply, 1)}
 	reply := noUe(request, "stopped")
 	if simulation.Send(procedures.UeTesterMessage{Type: procedures.Control, Control: request}) {
 		select {
@@ -148,7 +154,7 @@ func (simulation *UESimulation) Control(action, target string) (procedures.UeSta
 // noUe answers a control request the scenario has no UE to run on: it can still
 // be inspected, in the given state.
 func noUe(request *procedures.ControlRequest, state string) procedures.ControlReply {
-	reply := procedures.ControlReply{Status: procedures.UeStatus{State: state, PduSessions: []int{}}}
+	reply := procedures.ControlReply{Status: procedures.UeStatus{State: state, PduSessions: []int{}, Sessions: []procedures.PduSessionStatus{}}}
 	if request.Action != "inspect" {
 		reply.Err = fmt.Errorf("cannot %s a UE that is %s", request.Action, state)
 	}
@@ -250,6 +256,20 @@ func SimulateSingleUE(simConfig UESimulationConfig, wg *sync.WaitGroup) *UESimul
 					pending = append(pending, procedures.UeTesterMessage{Type: procedures.Idle})
 				case action == "reconnect" && status.State == "idle" && !status.Connected:
 					pending = append(pending, procedures.UeTesterMessage{Type: procedures.ServiceRequest})
+				case action == "pdu-establish" || action == "pdu-release":
+					if status.State != "registered" || !status.Connected {
+						err = fmt.Errorf("cannot %s on a UE that is %s (connected: %t)", action, status.State, status.Connected)
+						break
+					}
+					var id int
+					if id, err = pduSessionFor(action, request.PduSession, status.Sessions); err == nil {
+						status.ActionPduSession = id
+						messageType := procedures.EstablishPDUSessionId
+						if action == "pdu-release" {
+							messageType = procedures.ReleasePDUSessionId
+						}
+						pending = append(pending, procedures.UeTesterMessage{Type: messageType, Param: uint8(id)})
+					}
 				case (action == "xn-handover" || action == "ng-handover") && (target == nil || target == source):
 					err = fmt.Errorf("target gNB %q is unknown or already serves the UE", request.Target)
 				case (action == "xn-handover" || action == "ng-handover") && len(status.PduSessions) == 0:
@@ -372,6 +392,40 @@ func SimulateSingleUE(simConfig UESimulationConfig, wg *sync.WaitGroup) *UESimul
 		}
 	}()
 	return simulation
+}
+
+// pduSessionFor is the PDU session a pdu-establish or pdu-release acts on: the
+// requested one, or else the lowest free ID to establish or the lowest active
+// or rejected session to release.
+func pduSessionFor(action string, requested int, sessions []procedures.PduSessionStatus) (int, error) {
+	byId := map[int]procedures.PduSessionStatus{}
+	for _, session := range sessions {
+		byId[session.Id] = session
+	}
+	releasable := func(id int) bool {
+		state := byId[id].State
+		return state == "active" || state == "rejected"
+	}
+	if requested != 0 {
+		_, used := byId[requested]
+		switch {
+		case action == "pdu-establish" && used:
+			return 0, fmt.Errorf("PDU session %d is already %s", requested, byId[requested].State)
+		case action == "pdu-release" && !releasable(requested):
+			return 0, fmt.Errorf("PDU session %d is not active or rejected", requested)
+		}
+		return requested, nil
+	}
+	for id := 1; id <= 15; id++ {
+		_, used := byId[id]
+		if action == "pdu-establish" && !used || action == "pdu-release" && releasable(id) {
+			return id, nil
+		}
+	}
+	if action == "pdu-establish" {
+		return 0, errors.New("all 15 PDU session IDs are in use")
+	}
+	return 0, errors.New("no active or rejected PDU session to release")
 }
 
 func IncrementMsin(i int, msin string) string {

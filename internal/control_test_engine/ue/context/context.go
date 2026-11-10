@@ -101,6 +101,10 @@ type UEPDUSession struct {
 	Tunnel        Tunnel
 	Wait          chan bool
 	T3580Retries  int
+	// Controlled sessions were requested on the control socket: a reject is
+	// reported there, with its cause, instead of being retried.
+	Controlled  bool
+	RejectCause string
 
 	// establishmentStart is when the pending establishment attempt began, for the results.
 	establishmentStart time.Time
@@ -308,14 +312,28 @@ func (ue *UEContext) ReportStatus(request *procedures.ControlRequest) {
 		GnbInboundChannel: ue.gnbInboundChannel,
 	}
 	status.Ready = ue.StateMM == MM5G_REGISTERED && status.Connected && !ue.Handover
+	status.Sessions = []procedures.PduSessionStatus{}
 	for id := uint8(1); id <= 15; id++ {
 		pduSession, err := ue.GetPduSession(id)
+		if err != nil {
+			continue
+		}
+		session := procedures.PduSessionStatus{Id: int(id), Ip: pduSession.GetIp(), Cause: pduSession.RejectCause}
+		switch {
+		case pduSession.RejectCause != "":
+			session.State = "rejected"
+		case pduSession.GetStateSM() == SM5G_PDU_SESSION_INACTIVE:
+			session.State = "releasing"
 		// With tunnels, a session is usable once its interface exists, and only
 		// the first session of a UE gets one.
-		if err == nil && pduSession.GetStateSM() == SM5G_PDU_SESSION_ACTIVE &&
-			(ue.TunnelMode == config.TunnelDisabled || id != 1 || pduSession.Tunnel != nil) {
+		case pduSession.GetStateSM() == SM5G_PDU_SESSION_ACTIVE &&
+			(ue.TunnelMode == config.TunnelDisabled || id != 1 || pduSession.Tunnel != nil):
+			session.State = "active"
 			status.PduSessions = append(status.PduSessions, int(id))
+		default:
+			session.State = "pending"
 		}
+		status.Sessions = append(status.Sessions, session)
 	}
 	ue.scenarioChan <- scenario.ScenarioMessage{Control: request, Status: status}
 }
@@ -367,6 +385,19 @@ func (ue *UEContext) Lock() {
 
 func (ue *UEContext) Unlock() {
 	ue.lock.Unlock()
+}
+
+// CreatePDUSessionWithId reserves the PDU session ID pduSessionid, from 1, for a new session.
+func (ue *UEContext) CreatePDUSessionWithId(pduSessionid uint8) (*UEPDUSession, error) {
+	if pduSessionid < 1 || pduSessionid > 15 {
+		return nil, fmt.Errorf("invalid PDU session ID %d", pduSessionid)
+	}
+	if ue.PduSession[pduSessionid-1] != nil {
+		return nil, fmt.Errorf("PDU session ID %d is already in use", pduSessionid)
+	}
+	pduSession := &UEPDUSession{Id: pduSessionid, Wait: make(chan bool)}
+	ue.PduSession[pduSessionid-1] = pduSession
+	return pduSession, nil
 }
 
 func (ue *UEContext) GetPduSession(pduSessionid uint8) (*UEPDUSession, error) {

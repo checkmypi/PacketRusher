@@ -60,6 +60,19 @@ func InitPduSessionRequest(ue *context.UEContext) {
 	InitPduSessionRequestInner(ue, pduSession)
 }
 
+// InitControlledPduSessionRequest requests PDU session pduSessionid for the control
+// socket, which is told of a reject instead of the session being requested again.
+func InitControlledPduSessionRequest(ue *context.UEContext, pduSessionid uint8) error {
+	pduSession, err := ue.CreatePDUSessionWithId(pduSessionid)
+	if err != nil {
+		return err
+	}
+	pduSession.Controlled = true
+	log.Info(ue.LogTag()+" Initiating New PDU Session ", pduSession.Id)
+	InitPduSessionRequestInner(ue, pduSession)
+	return nil
+}
+
 func InitPduSessionRequestInner(ue *context.UEContext, pduSession *context.UEPDUSession) {
 
 	ulNasTransport, err := mm_5gs.Request_UlNasTransport(pduSession, ue)

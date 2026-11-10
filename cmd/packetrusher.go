@@ -182,13 +182,14 @@ func newApp() *cli.App {
 					"Example for handing UE 1 over to another gNB: control --socket /tmp/pr.sock --ue 1 --action xn-handover --target 000009\n",
 				Flags: []cli.Flag{
 					&cli.PathFlag{Name: "socket", Required: true, Usage: "The --control-socket of the multi-ue test."},
-					&cli.StringFlag{Name: "action", Value: "inspect", Usage: "One of inspect, wait, register, deregister, idle, reconnect, xn-handover, ng-handover."},
+					&cli.StringFlag{Name: "action", Value: "inspect", Usage: "One of inspect, wait, register, deregister, idle, reconnect, xn-handover, ng-handover, pdu-establish, pdu-release."},
 					&cli.IntFlag{Name: "ue", Usage: "The UE, starting from 1. Only inspect can omit it, to report all the UEs."},
 					&cli.StringFlag{Name: "target", Usage: "The ID of the gNB to hand the UE over to."},
+					&cli.IntFlag{Name: "pdu-session", Usage: "The PDU session ID of pdu-establish or pdu-release. By default the lowest free ID, or the lowest active or rejected session."},
 					&cli.DurationFlag{Name: "timeout", Value: 30 * time.Second, Usage: "The time given to the action to complete."},
 				},
 				Action: func(c *cli.Context) error {
-					response, err := control.Call(c.Path("socket"), control.Request{UeId: c.Int("ue"), Action: c.String("action"), Target: c.String("target"), TimeoutMs: int(c.Duration("timeout").Milliseconds())})
+					response, err := control.Call(c.Path("socket"), control.Request{UeId: c.Int("ue"), Action: c.String("action"), Target: c.String("target"), PduSession: c.Int("pdu-session"), TimeoutMs: int(c.Duration("timeout").Milliseconds())})
 					if err != nil {
 						return err
 					}

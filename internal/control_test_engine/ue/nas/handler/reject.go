@@ -6,6 +6,7 @@
 package handler
 
 import (
+	"fmt"
 	"math"
 	"my5G-RANTester/internal/control_test_engine/ue/context"
 	"my5G-RANTester/internal/control_test_engine/ue/nas/trigger"
@@ -31,6 +32,14 @@ func handleEstablishmentReject(ue *context.UEContext, reject *message.PDUSessEst
 		return
 	}
 	pduSession.EstablishmentFailed()
+	if pduSession.Controlled {
+		// The control socket reports the reject; its client decides what follows.
+		pduSession.RejectCause = "unknown cause"
+		if reject.Cause5GSM != nil {
+			pduSession.RejectCause = fmt.Sprintf("%s (#%d)", reject.Cause5GSM, reject.Cause5GSM.Value)
+		}
+		return
+	}
 	if pduSession.T3580Retries >= maxRejectRetries {
 		log.Error(ue.LogTag()+"[NAS] We re-tried five times to create PDU Session ", pduSessionId, ", Aborting.")
 		return

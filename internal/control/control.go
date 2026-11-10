@@ -30,6 +30,9 @@ type Request struct {
 	Action    string `json:"action"`
 	Target    string `json:"target,omitempty"`
 	TimeoutMs int    `json:"timeout_ms,omitempty"`
+	// PduSession is the PDU session ID, from 1, of a pdu-establish or pdu-release.
+	// 0 picks the lowest free ID, or the lowest active or rejected session.
+	PduSession int `json:"pdu_session,omitempty"`
 }
 
 type Gnb struct {
@@ -45,11 +48,13 @@ type Response struct {
 
 // Validate refuses a request that no UE could run, whatever its state.
 func (request Request) Validate() error {
-	handover := false
+	handover, pdu := false, false
 	switch request.Action {
 	case "inspect", "wait", "register", "deregister", "idle", "reconnect":
 	case "xn-handover", "ng-handover":
 		handover = true
+	case "pdu-establish", "pdu-release":
+		pdu = true
 	default:
 		return fmt.Errorf("unknown action %q", request.Action)
 	}
@@ -58,6 +63,10 @@ func (request Request) Validate() error {
 		return fmt.Errorf("%s requires the ID of a UE, starting from 1", request.Action)
 	case handover != (request.Target != ""):
 		return errors.New("a target gNB ID is required by handovers, and only by them")
+	case request.PduSession != 0 && !pdu:
+		return errors.New("a PDU session ID is only taken by pdu-establish and pdu-release")
+	case request.PduSession < 0 || request.PduSession > 15:
+		return fmt.Errorf("invalid PDU session ID %d", request.PduSession)
 	case request.TimeoutMs < 0:
 		return errors.New("the timeout cannot be negative")
 	}
@@ -82,8 +91,23 @@ func (request Request) done(status procedures.UeStatus) bool {
 		return status.State == "idle" && !status.Connected
 	case "xn-handover", "ng-handover":
 		return status.Ready && status.GnbId == request.Target
+	case "pdu-establish":
+		session, found := pduSession(status, request.PduSession)
+		return found && (session.State == "active" || session.State == "rejected")
+	case "pdu-release":
+		_, found := pduSession(status, request.PduSession)
+		return !found
 	}
 	return status.Ready
+}
+
+func pduSession(status procedures.UeStatus, id int) (procedures.PduSessionStatus, bool) {
+	for _, session := range status.Sessions {
+		if session.Id == id {
+			return session, true
+		}
+	}
+	return procedures.PduSessionStatus{}, false
 }
 
 // Server answers the control requests of a test. Closing it removes its socket.
@@ -156,19 +180,38 @@ func (server *Server) run(request Request) (Response, error) {
 	if action == "wait" {
 		action = "inspect"
 	}
-	response, err := server.control(request.UeId, action, request.Target)
+	response, err := server.control(request.UeId, action, request.Target, request.PduSession)
+	if err == nil && request.UeId != 0 && response.Ues[0].ActionPduSession != 0 {
+		request.PduSession = response.Ues[0].ActionPduSession
+	}
 	for err == nil && request.UeId != 0 && !request.done(response.Ues[0]) {
 		if time.Now().After(deadline) {
 			return response, fmt.Errorf("UE %d: %s timed out in state %s", request.UeId, request.Action, response.Ues[0].State)
 		}
-		time.Sleep(100 * time.Millisecond)
-		response, err = server.control(request.UeId, "inspect", "")
+		time.Sleep(pollInterval(request.Action))
+		response, err = server.control(request.UeId, "inspect", "", 0)
+	}
+	if err == nil && request.UeId != 0 {
+		response.Ues[0].ActionPduSession = request.PduSession
+		if session, _ := pduSession(response.Ues[0], request.PduSession); request.Action == "pdu-establish" && session.State == "rejected" {
+			err = fmt.Errorf("UE %d: PDU session %d rejected: %s", request.UeId, session.Id, session.Cause)
+		}
 	}
 	return response, err
 }
 
+// pollInterval is how often a running action inspects its UE. PDU session and
+// idle mode procedures are polled faster: load tests time and repeat them.
+func pollInterval(action string) time.Duration {
+	switch action {
+	case "pdu-establish", "pdu-release", "idle", "reconnect":
+		return 10 * time.Millisecond
+	}
+	return 100 * time.Millisecond
+}
+
 // control runs an action on a UE, or on every UE when ueId is 0.
-func (server *Server) control(ueId int, action, target string) (Response, error) {
+func (server *Server) control(ueId int, action, target string, pduSession int) (Response, error) {
 	response := Response{Ues: []procedures.UeStatus{}, Gnbs: []Gnb{}}
 	server.lock.Lock()
 	ues := append([]*tools.UESimulation{}, server.ues...)
@@ -180,9 +223,9 @@ func (server *Server) control(ueId int, action, target string) (Response, error)
 		if ueId != 0 && ueId != i+1 {
 			continue
 		}
-		status, err := procedures.UeStatus{State: "starting", PduSessions: []int{}}, error(nil)
+		status, err := procedures.UeStatus{State: "starting", PduSessions: []int{}, Sessions: []procedures.PduSessionStatus{}}, error(nil)
 		if simulation != nil {
-			status, err = simulation.Control(action, target)
+			status, err = simulation.ControlPduSession(action, target, pduSession)
 		} else if action != "inspect" {
 			err = errors.New("UE is not started yet")
 		}

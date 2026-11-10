@@ -32,6 +32,12 @@ func TestRequestValidate(t *testing.T) {
 		{Request{UeId: 1, Action: "xn-handover"}, false},
 		{Request{UeId: 1, Action: "idle", Target: "000009"}, false},
 		{Request{UeId: 1, Action: "idle", TimeoutMs: -1}, false},
+		{Request{UeId: 1, Action: "pdu-establish"}, true},
+		{Request{UeId: 1, Action: "pdu-release", PduSession: 15}, true},
+		{Request{UeId: 1, Action: "pdu-release", PduSession: 16}, false},
+		{Request{UeId: 1, Action: "pdu-establish", PduSession: -1}, false},
+		{Request{UeId: 1, Action: "idle", PduSession: 1}, false},
+		{Request{Action: "pdu-establish"}, false},
 	} {
 		if err := test.request.Validate(); (err == nil) != test.valid {
 			t.Errorf("Validate(%+v) = %v, want valid: %t", test.request, err, test.valid)
@@ -64,7 +70,7 @@ func TestListen(t *testing.T) {
 	// A UE which is not started yet can only be inspected.
 	response, err := Call(socket, Request{Action: "inspect"})
 	require.NoError(t, err)
-	require.Equal(t, []procedures.UeStatus{{UeId: 1, State: "starting", PduSessions: []int{}}, {UeId: 2, State: "starting", PduSessions: []int{}}}, response.Ues)
+	require.Equal(t, []procedures.UeStatus{{UeId: 1, State: "starting", PduSessions: []int{}, Sessions: []procedures.PduSessionStatus{}}, {UeId: 2, State: "starting", PduSessions: []int{}, Sessions: []procedures.PduSessionStatus{}}}, response.Ues)
 	_, err = Call(socket, Request{UeId: 2, Action: "idle"})
 	require.ErrorContains(t, err, "not started")
 	_, err = Call(socket, Request{UeId: 3, Action: "inspect"})
@@ -74,4 +80,25 @@ func TestListen(t *testing.T) {
 
 	require.NoError(t, server.Close())
 	require.NoFileExists(t, socket)
+}
+
+func TestPduSessionDone(t *testing.T) {
+	status := procedures.UeStatus{Sessions: []procedures.PduSessionStatus{
+		{Id: 1, State: "active", Ip: "10.0.0.2"}, {Id: 2, State: "pending"}, {Id: 3, State: "rejected", Cause: "Insufficient resources (#26)"}, {Id: 4, State: "releasing"},
+	}}
+	for _, test := range []struct {
+		request Request
+		done    bool
+	}{
+		{Request{Action: "pdu-establish", PduSession: 1}, true},
+		{Request{Action: "pdu-establish", PduSession: 2}, false},
+		{Request{Action: "pdu-establish", PduSession: 3}, true},
+		{Request{Action: "pdu-establish", PduSession: 5}, false},
+		{Request{Action: "pdu-release", PduSession: 4}, false},
+		{Request{Action: "pdu-release", PduSession: 5}, true},
+	} {
+		if done := test.request.done(status); done != test.done {
+			t.Errorf("done(%+v) = %t, want %t", test.request, done, test.done)
+		}
+	}
 }
