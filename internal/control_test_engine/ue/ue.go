@@ -70,7 +70,7 @@ func handleUE(ue *context.UEContext, ueMgrChannel <-chan procedures.UeTesterMess
 		select {
 		case msg, open := <-ue.GetGnbTx():
 			if !open {
-				log.Debug("[UE][", ue.GetMsin(), "] gNB context released; waiting for a new connection or scenario action")
+				log.Debug(ue.LogTag(), " gNB context released; waiting for a new connection or scenario action")
 				ue.SetGnbTx(nil)
 				ue.Lock()
 				if rx := ue.GetGnbRx(); rx != nil {
@@ -82,11 +82,11 @@ func handleUE(ue *context.UEContext, ueMgrChannel <-chan procedures.UeTesterMess
 			}
 			gnbMsgHandler(msg, ue)
 		case <-ue.GetGnbConnectionLost():
-			log.Warn("[UE][", ue.GetMsin(), "] Stopping UE after its gNB association failed")
+			log.Warn(ue.LogTag(), " Stopping UE after its gNB association failed")
 			loop = false
 		case msg, open := <-ueMgrChannel:
 			if !open {
-				log.Warn("[UE][", ue.GetMsin(), "] Stopping UE as communication with scenario was closed")
+				log.Warn(ue.LogTag(), " Stopping UE as communication with scenario was closed")
 				loop = false
 				break
 			}
@@ -111,7 +111,7 @@ func gnbMsgHandler(msg context2.UEMessage, ue *context.UEContext) {
 		serviceGtp.SetupGtpInterface(ue, msg)
 		ue.Handover = false
 	} else if msg.GNBRx != nil && msg.GNBTx != nil && msg.GNBInboundChannel != nil {
-		log.Info("[UE] gNodeB is telling us to use another gNodeB")
+		log.Info(ue.LogTag() + " gNodeB is telling us to use another gNodeB")
 		ue.Handover = true
 		previousGnbRx := ue.GetGnbRx()
 		ue.SetGnbInboundChannel(msg.GNBInboundChannel)
@@ -120,7 +120,7 @@ func gnbMsgHandler(msg context2.UEMessage, ue *context.UEContext) {
 		previousGnbRx <- context2.UEMessage{ConnectionClosed: true}
 		close(previousGnbRx)
 	} else {
-		log.Error("[UE] Received unknown message from gNodeB", msg)
+		log.Error(ue.LogTag()+" Received unknown message from gNodeB", msg)
 	}
 }
 
@@ -138,10 +138,10 @@ func verifyPaging(ue *context.UEContext) {
 				}
 			}
 		case <-time.After(1 * time.Second):
-			log.Warn("[UE] Timeout waiting for paged UEs response")
+			log.Warn(ue.LogTag() + " Timeout waiting for paged UEs response")
 		}
 	default:
-		log.Debug("[UE] Cannot send paging request to gNB, channel full")
+		log.Debug(ue.LogTag() + " Cannot send paging request to gNB, channel full")
 	}
 }
 
@@ -157,7 +157,7 @@ func ueMgrHandler(msg procedures.UeTesterMessage, ue *context.UEContext) bool {
 	case procedures.DestroyPDUSession:
 		pdu, err := ue.GetPduSession(msg.Param)
 		if err != nil {
-			log.Error("[UE] Cannot release unknown PDU Session ID ", msg.Param)
+			log.Error(ue.LogTag()+" Cannot release unknown PDU Session ID ", msg.Param)
 			return loop
 		}
 		trigger.InitPduSessionRelease(ue, pdu)
@@ -181,7 +181,7 @@ func ueMgrHandler(msg procedures.UeTesterMessage, ue *context.UEContext) bool {
 			}
 		}
 	case procedures.Terminate:
-		log.Info("[UE] Terminating UE as requested")
+		log.Info(ue.LogTag() + " Terminating UE as requested")
 		// If UE is registered
 		if ue.GetStateMM() == context.MM5G_REGISTERED {
 			// Release PDU Sessions

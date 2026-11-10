@@ -27,12 +27,12 @@ func handleEstablishmentReject(ue *context.UEContext, reject *message.PDUSessEst
 	pduSessionId := reject.PDUSessId
 	pduSession, err := ue.GetPduSession(pduSessionId)
 	if err != nil {
-		log.Error("[UE][NAS] Cannot retry PDU Session Request for PDU Session ", pduSessionId, " after Reject as ", err)
+		log.Error(ue.LogTag()+"[NAS] Cannot retry PDU Session Request for PDU Session ", pduSessionId, " after Reject as ", err)
 		return
 	}
 	pduSession.EstablishmentFailed()
 	if pduSession.T3580Retries >= maxRejectRetries {
-		log.Error("[UE][NAS] We re-tried five times to create PDU Session ", pduSessionId, ", Aborting.")
+		log.Error(ue.LogTag()+"[NAS] We re-tried five times to create PDU Session ", pduSessionId, ", Aborting.")
 		return
 	}
 	wait := time.Duration(math.Pow(5, float64(pduSession.T3580Retries))) * time.Second

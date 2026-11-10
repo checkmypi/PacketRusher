@@ -31,8 +31,8 @@ func InitConn(ue *context.UEContext, gnbInboundChannel chan gnbContext.UEMessage
 			ue.SetAmfMccAndMnc(msg.Mcc, msg.Mnc)
 		}
 	case <-lost:
-		log.Warn("[UE] gNB connection failed during attach")
+		log.Warn(ue.LogTag() + " gNB connection failed during attach")
 	case <-time.After(5 * time.Second):
-		log.Error("[UE] Timeout waiting for AMF MCC/MNC message from gNB")
+		log.Error(ue.LogTag() + " Timeout waiting for AMF MCC/MNC message from gNB")
 	}
 }

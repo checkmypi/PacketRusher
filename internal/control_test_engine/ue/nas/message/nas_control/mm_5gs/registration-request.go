@@ -50,7 +50,7 @@ func GetRegistrationRequest(registrationType uint8, requestedNSSAI *ie.NSSAI, up
 	}
 	encrypted, err := ue.NASSecurityContext().NASEncrypt(nas.DirectionUplink, b)
 	if err != nil {
-		log.Errorf("[UE][NAS] Encrypting registration container: %v", err)
+		log.Errorf(ue.LogTag()+"[NAS] Encrypting registration container: %v", err)
 		return nil
 	}
 	msg.NASMsgCntr = &ie.NASMsgCntr{Contents: encrypted}

@@ -158,7 +158,8 @@ func noUe(request *procedures.ControlRequest, state string) procedures.ControlRe
 func SimulateSingleUE(simConfig UESimulationConfig, wg *sync.WaitGroup) *UESimulation {
 	ueCfg := simConfig.Cfg
 	ueCfg.Ue.Msin = IncrementMsin(simConfig.UeId, simConfig.Cfg.Ue.Msin)
-	log.Info("[TESTER] TESTING REGISTRATION USING IMSI ", ueCfg.Ue.Msin, " UE")
+	logTag := ueCtx.LogTag(simConfig.UeId, ueCfg.Ue.Msin)
+	log.Info(logTag, " TESTING REGISTRATION USING IMSI ", ueCfg.Ue.Msin, " UE")
 
 	simulation := &UESimulation{commands: make(chan procedures.UeTesterMessage), done: make(chan struct{})}
 	// Count the scenario before starting it. It may create further UEs after a
@@ -174,7 +175,7 @@ func SimulateSingleUE(simConfig UESimulationConfig, wg *sync.WaitGroup) *UESimul
 		// Delay the UE's first registration. Global shutdown and control
 		// requests remain receivable while waiting.
 		if simConfig.TimeBeforeRegistration > 0 {
-			log.Info("[TESTER] Delaying first registration of UE ", simConfig.UeId, " by ", simConfig.TimeBeforeRegistration, " ms")
+			log.Info(logTag, " Delaying first registration by ", simConfig.TimeBeforeRegistration, " ms")
 			start := time.NewTimer(time.Duration(simConfig.TimeBeforeRegistration) * time.Millisecond)
 			for waiting := true; waiting; {
 				select {
@@ -327,7 +328,7 @@ func SimulateSingleUE(simConfig UESimulationConfig, wg *sync.WaitGroup) *UESimul
 						control(msg.Control, msg.Status)
 						continue
 					}
-					log.Info("[UE] Switched from state ", state, " to state ", msg.StateChange)
+					log.Info(logTag, " Switched from state ", state, " to state ", msg.StateChange)
 					if msg.StateChange == ueCtx.MM5G_REGISTERED && !registered {
 						if ueRx != nil && !stopping {
 							for session := 0; session < simConfig.NumPduSessions; session++ {

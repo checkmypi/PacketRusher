@@ -111,10 +111,10 @@ func validateSecurityModeCommand(ue *context.UEContext, command *nas.SecModeCmd)
 func DispatchNas(ue *context.UEContext, packet []byte) {
 	msg, err := DecodeNAS(ue, packet)
 	if err != nil {
-		log.Errorf("[UE][NAS] Decode failed: %v", err)
+		log.Errorf(ue.LogTag()+"[NAS] Decode failed: %v", err)
 		return
 	}
-	log.Infof("[UE][NAS] Receive %s", msg.MsgType())
+	log.Infof(ue.LogTag()+"[NAS] Receive %s", msg.MsgType())
 	switch m := msg.(type) {
 	case *nas.AuthReq:
 		handler.HandlerAuthenticationRequest(ue, m)
@@ -130,21 +130,21 @@ func DispatchNas(ue *context.UEContext, packet []byte) {
 		handler.HandlerConfigurationUpdateCommand(ue, m)
 	case *nas.DLNASTransport:
 		if m.Cause5GMM != nil {
-			log.Errorf("[UE][NAS] 5GMM failure: %s", m.Cause5GMM)
+			log.Errorf(ue.LogTag()+"[NAS] 5GMM failure: %s", m.Cause5GMM)
 		}
 		handler.HandlerDlNasTransportPduaccept(ue, m)
 	case *nas.SvcAccept:
 		handler.HandlerServiceAccept(ue, m)
 	case *nas.SvcRej:
-		log.Errorf("[UE][NAS] Service Reject: %s", m.Cause5GMM)
+		log.Errorf(ue.LogTag()+"[NAS] Service Reject: %s", m.Cause5GMM)
 	case *nas.RegRej:
 		ue.RegistrationFailed()
-		log.Errorf("[UE][NAS] Registration Reject: %s", m.Cause5GMM)
+		log.Errorf(ue.LogTag()+"[NAS] Registration Reject: %s", m.Cause5GMM)
 	case *nas.Status5GMM:
-		log.Errorf("[UE][NAS] 5GMM status: %s", m.Cause5GMM)
+		log.Errorf(ue.LogTag()+"[NAS] 5GMM status: %s", m.Cause5GMM)
 	case *nas.Status5GSM:
-		log.Errorf("[UE][NAS] 5GSM status: %s", m.Cause5GSM)
+		log.Errorf(ue.LogTag()+"[NAS] 5GSM status: %s", m.Cause5GSM)
 	default:
-		log.Warnf("[UE][NAS] Unsupported message %s", msg.MsgType())
+		log.Warnf(ue.LogTag()+"[NAS] Unsupported message %s", msg.MsgType())
 	}
 }

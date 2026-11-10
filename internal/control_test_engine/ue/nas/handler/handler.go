@@ -19,13 +19,13 @@ import (
 
 func HandlerAuthenticationReject(ue *context.UEContext, msg *nas.AuthRej) {
 	ue.RegistrationFailed()
-	log.Info("[UE][NAS] Authentication of UE ", ue.GetUeId(), " failed")
+	log.Info(ue.LogTag()+"[NAS] Authentication of UE ", ue.GetUeId(), " failed")
 	ue.SetStateMM_DEREGISTERED()
 }
 
 func HandlerAuthenticationRequest(ue *context.UEContext, msg *nas.AuthReq) {
 	if msg.Ngksi == nil || msg.Ngksi.Ksi == ie.NASKeyNA || msg.AuthParamRAND5GAuthChlg == nil || msg.AuthParamAUTN5GAuthChlg == nil || msg.ABBA == nil {
-		log.Error("[UE][NAS] Authentication Request missing mandatory AKA parameters")
+		log.Error(ue.LogTag() + "[NAS] Authentication Request missing mandatory AKA parameters")
 		return
 	}
 	param, result := ue.DeriveRESstarAndSetKey(ue.UeSecurity.AuthenticationSubs, msg.AuthParamRAND5GAuthChlg.Rand, ue.UeSecurity.Snn, msg.AuthParamAUTN5GAuthChlg.Autn)
@@ -37,7 +37,7 @@ func HandlerAuthenticationRequest(ue *context.UEContext, msg *nas.AuthReq) {
 		response = mm_5gs.AuthenticationResponse(param, "")
 		ue.SetStateMM_REGISTERED_INITIATED()
 	default:
-		log.Errorf("[UE][NAS] Authentication failed: %s", result)
+		log.Errorf(ue.LogTag()+"[NAS] Authentication failed: %s", result)
 		return
 	}
 	sender.SendToGnb(ue, response)
@@ -45,7 +45,7 @@ func HandlerAuthenticationRequest(ue *context.UEContext, msg *nas.AuthReq) {
 
 func HandlerSecurityModeCommand(ue *context.UEContext, msg *nas.SecModeCmd) {
 	if msg.Ngksi == nil || msg.Ngksi.Ksi == ie.NASKeyNA || msg.SelectedNASSecAlgos == nil || msg.ReplayedUESecCapabilities == nil {
-		log.Error("[UE][NAS] Invalid Security Mode Command")
+		log.Error(ue.LogTag() + "[NAS] Invalid Security Mode Command")
 		return
 	}
 	ue.UeSecurity.NgKsi = *msg.Ngksi
@@ -55,7 +55,7 @@ func HandlerSecurityModeCommand(ue *context.UEContext, msg *nas.SecModeCmd) {
 	}
 	pdu, err := mm_5gs.SecurityModeComplete(ue, rinmr)
 	if err != nil {
-		log.Errorf("[UE][NAS] Security Mode Complete: %v", err)
+		log.Errorf(ue.LogTag()+"[NAS] Security Mode Complete: %v", err)
 		return
 	}
 	sender.SendToGnb(ue, pdu)
@@ -63,14 +63,14 @@ func HandlerSecurityModeCommand(ue *context.UEContext, msg *nas.SecModeCmd) {
 
 func HandlerRegistrationAccept(ue *context.UEContext, msg *nas.RegAccept) {
 	if msg.RegResult5GS == nil || msg.RegResult5GS.Value != ie.RegResult_3gpp {
-		log.Error("[UE][NAS] Registration Accept does not register 3GPP access")
+		log.Error(ue.LogTag() + "[NAS] Registration Accept does not register 3GPP access")
 		return
 	}
 	ue.SetStateMM_REGISTERED()
 	if msg.GUTI5G != nil {
 		ue.Set5gGuti(msg.GUTI5G)
 	} else {
-		log.Warn("[UE][NAS] AMF did not assign a 5G-GUTI")
+		log.Warn(ue.LogTag() + "[NAS] AMF did not assign a 5G-GUTI")
 	}
 	if ue.Snssai.Sst == 0 && msg.AllowedNSSAI != nil && len(msg.AllowedNSSAI.SNSSAIs) > 0 {
 		allowed := msg.AllowedNSSAI.SNSSAIs[0]
@@ -78,7 +78,7 @@ func HandlerRegistrationAccept(ue *context.UEContext, msg *nas.RegAccept) {
 	}
 	pdu, err := mm_5gs.RegistrationComplete(ue)
 	if err != nil {
-		log.Errorf("[UE][NAS] Registration Complete: %v", err)
+		log.Errorf(ue.LogTag()+"[NAS] Registration Complete: %v", err)
 		return
 	}
 	sender.SendToGnb(ue, pdu)
@@ -88,12 +88,12 @@ func HandlerServiceAccept(ue *context.UEContext, msg *nas.SvcAccept) { ue.SetSta
 
 func HandlerDlNasTransportPduaccept(ue *context.UEContext, msg *nas.DLNASTransport) {
 	if msg.PayloadCntrType == nil || msg.PayloadCntrType.Value != ie.PayloadCntrType_N1SMInfo || msg.PayloadCntr == nil || msg.PDUSessID == nil {
-		log.Error("[UE][NAS] Invalid DL NAS Transport")
+		log.Error(ue.LogTag() + "[NAS] Invalid DL NAS Transport")
 		return
 	}
 	payload := nas_control.GetNasPduFromPduAccept(msg)
 	if payload == nil {
-		log.Error("[UE][NAS] Invalid N1 SM payload")
+		log.Error(ue.LogTag() + "[NAS] Invalid N1 SM payload")
 		return
 	}
 	switch m := payload.(type) {
@@ -106,53 +106,53 @@ func HandlerDlNasTransportPduaccept(ue *context.UEContext, msg *nas.DLNASTranspo
 	case *nas.PDUSessEstAccept:
 		// TS 24.501 §9.11.4.10: an IPv4 address, an IPv6 interface identifier, or both.
 		if m.PDUAddr == nil || (len(m.PDUAddr.IPv4) != 4 && len(m.PDUAddr.IPv6IfId) != 8) {
-			log.Error("[UE][NAS] PDU session requires an IPv4 address or an IPv6 interface identifier")
+			log.Error(ue.LogTag() + "[NAS] PDU session requires an IPv4 address or an IPv6 interface identifier")
 			return
 		}
 		session, err := ue.GetPduSession(m.PDUSessId)
 		if err != nil {
-			log.Errorf("[UE][NAS] Unknown PDU session %d: %v", m.PDUSessId, err)
+			log.Errorf(ue.LogTag()+"[NAS] Unknown PDU session %d: %v", m.PDUSessId, err)
 			return
 		}
 		if len(m.PDUAddr.IPv4) == 4 {
 			var ip [12]uint8
 			copy(ip[:], m.PDUAddr.IPv4)
 			session.SetIp(ip)
-			log.Infof("[UE][NAS] PDU session %d address: %s", m.PDUSessId, session.GetIp())
+			log.Infof(ue.LogTag()+"[NAS] PDU session %d address: %s", m.PDUSessId, session.GetIp())
 		}
 		if len(m.PDUAddr.IPv6IfId) == 8 {
 			linkLocal := [16]byte{0xfe, 0x80}
 			copy(linkLocal[8:], m.PDUAddr.IPv6IfId)
 			session.SetIPv6(netip.AddrFrom16(linkLocal))
-			log.Infof("[UE][NAS] PDU session %d IPv6 link-local address: %s", m.PDUSessId, session.GetIPv6())
+			log.Infof(ue.LogTag()+"[NAS] PDU session %d IPv6 link-local address: %s", m.PDUSessId, session.GetIPv6())
 		}
 		session.SetStateSM_PDU_SESSION_ACTIVE()
 		if m.DNN != nil {
-			log.Infof("[UE][NAS] PDU session DNN: %s", m.DNN.Value)
+			log.Infof(ue.LogTag()+"[NAS] PDU session DNN: %s", m.DNN.Value)
 		}
 		if m.SNSSAI != nil {
-			log.Infof("[UE][NAS] PDU session NSSAI: SST %d, SD %s", m.SNSSAI.SST, m.SNSSAI.SD)
+			log.Infof(ue.LogTag()+"[NAS] PDU session NSSAI: SST %d, SD %s", m.SNSSAI.SST, m.SNSSAI.SD)
 		}
-		log.Infof("[UE][NAS] PDU session QoS rules: %+v", m.AuthoQosRules)
+		log.Infof(ue.LogTag()+"[NAS] PDU session QoS rules: %+v", m.AuthoQosRules)
 	case *nas.PDUSessRelCmd:
 		session, err := ue.GetPduSession(m.PDUSessId)
 		if err != nil || session == nil {
-			log.Errorf("[UE][NAS] Unknown PDU session %d", m.PDUSessId)
+			log.Errorf(ue.LogTag()+"[NAS] Unknown PDU session %d", m.PDUSessId)
 			return
 		}
 		ue.DeletePduSession(m.PDUSessId)
 		trigger.InitPduSessionReleaseComplete(ue, session)
 	case *nas.PDUSessEstRej:
-		log.Errorf("[UE][NAS] PDU session %d rejected: %s", m.PDUSessId, m.Cause5GSM)
+		log.Errorf(ue.LogTag()+"[NAS] PDU session %d rejected: %s", m.PDUSessId, m.Cause5GSM)
 		handleEstablishmentReject(ue, m)
 	default:
-		log.Errorf("[UE][NAS] Unsupported N1 SM payload: %s", payload.MsgType())
+		log.Errorf(ue.LogTag()+"[NAS] Unsupported N1 SM payload: %s", payload.MsgType())
 	}
 }
 
 func HandlerIdentityRequest(ue *context.UEContext, msg *nas.IdReq) {
 	if msg.IdType == nil || msg.IdType.IdType != ie.IdType_5GS_SUCI {
-		log.Error("[UE][NAS] Only SUCI identity requests are supported")
+		log.Error(ue.LogTag() + "[NAS] Only SUCI identity requests are supported")
 		return
 	}
 	trigger.InitIdentifyResponse(ue)

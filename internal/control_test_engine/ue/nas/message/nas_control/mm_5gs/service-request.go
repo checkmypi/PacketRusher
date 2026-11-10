@@ -24,7 +24,7 @@ func ServiceRequest(ue *context.UEContext) []byte {
 	}
 	encrypted, err := ue.NASSecurityContext().NASEncrypt(nas.DirectionUplink, b)
 	if err != nil {
-		log.Errorf("[UE][NAS] Encrypting service container: %v", err)
+		log.Errorf(ue.LogTag()+"[NAS] Encrypting service container: %v", err)
 		return nil
 	}
 	msg.NASMsgCntr = &ie.NASMsgCntr{Contents: encrypted}

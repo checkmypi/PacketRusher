@@ -29,7 +29,7 @@ func (t *tunnel) solicitIPv6(ue *context.UEContext, pduSession *context.UEPDUSes
 		global, err := d.solicit(linkLocal)
 		if err != nil {
 			if !errors.Is(err, net.ErrClosed) { // Otherwise released or handed over meanwhile.
-				log.Warn("[UE][GTP] No IPv6 for UE ", msin, ": ", err)
+				log.Warn(ue.LogTag()+"[GTP] No IPv6 for UE ", msin, ": ", err)
 			}
 			return
 		}
@@ -44,7 +44,7 @@ func (t *tunnel) solicitIPv6(ue *context.UEContext, pduSession *context.UEPDUSes
 				err = t.plumbIPv6(global)
 			}
 			if err != nil {
-				log.Warn("[UE][GTP] Unable to configure IPv6 for UE ", msin, ": ", err)
+				log.Warn(ue.LogTag()+"[GTP] Unable to configure IPv6 for UE ", msin, ": ", err)
 				return
 			}
 			logTunnel(ue, t.link.Attrs().Name, global.String())

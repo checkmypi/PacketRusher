@@ -66,7 +66,7 @@ func SetupGtpInterface(ue *context.UEContext, msg gnbContext.UEMessage) {
 	pduSession.GnbPduSession = gnbPduSession
 
 	if ue.TunnelMode == config.TunnelDisabled {
-		log.Info(fmt.Sprintf("[UE][GTP] Interface for UE %s has not been created. Tunnel has been disabled.", ue.GetMsin()))
+		log.Info(fmt.Sprintf(ue.LogTag()+"[GTP] Interface for UE %s has not been created. Tunnel has been disabled.", ue.GetMsin()))
 		return
 	}
 
@@ -83,7 +83,7 @@ func SetupGtpInterface(ue *context.UEContext, msg gnbContext.UEMessage) {
 	}
 
 	if err := setupTunnel(ue, pduSession, msg); err != nil {
-		log.Error("[UE][GTP] Unable to set up the tunnel of UE ", ue.GetMsin(), ": ", err)
+		log.Error(ue.LogTag()+"[GTP] Unable to set up the tunnel of UE ", ue.GetMsin(), ": ", err)
 	}
 }
 
@@ -332,13 +332,13 @@ func removeLink(name string) {
 // logTunnel tells how to do traffic from the UE's address ueIp, IPv4 or IPv6.
 func logTunnel(ue *context.UEContext, nameInf, ueIp string) {
 	vrfInf := fmt.Sprintf("vrf%s", ue.GetMsin())
-	log.Info(fmt.Sprintf("[UE][GTP] Interface %s has successfully been configured for UE %s", nameInf, ueIp))
+	log.Info(fmt.Sprintf(ue.LogTag()+"[GTP] Interface %s has successfully been configured for UE %s", nameInf, ueIp))
 	switch ue.TunnelMode {
 	case config.TunnelTun, config.TunnelShared:
-		log.Info(fmt.Sprintf("[UE][GTP] You can do traffic for this UE by binding to IP %s, eg:", ueIp))
-		log.Info(fmt.Sprintf("[UE][GTP] iperf3 -B %s -c IPERF_SERVER -p PORT -t 9000", ueIp))
+		log.Info(fmt.Sprintf(ue.LogTag()+"[GTP] You can do traffic for this UE by binding to IP %s, eg:", ueIp))
+		log.Info(fmt.Sprintf(ue.LogTag()+"[GTP] iperf3 -B %s -c IPERF_SERVER -p PORT -t 9000", ueIp))
 	case config.TunnelVrf:
-		log.Info(fmt.Sprintf("[UE][GTP] You can do traffic for this UE using VRF %s, eg:", vrfInf))
-		log.Info(fmt.Sprintf("[UE][GTP] sudo ip vrf exec %s iperf3 -c IPERF_SERVER -p PORT -t 9000", vrfInf))
+		log.Info(fmt.Sprintf(ue.LogTag()+"[GTP] You can do traffic for this UE using VRF %s, eg:", vrfInf))
+		log.Info(fmt.Sprintf(ue.LogTag()+"[GTP] sudo ip vrf exec %s iperf3 -c IPERF_SERVER -p PORT -t 9000", vrfInf))
 	}
 }
