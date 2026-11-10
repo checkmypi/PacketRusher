@@ -88,3 +88,23 @@ func TestRejectedSessionIsNotRetriedAfterFiveRetries(t *testing.T) {
 
 	assert.Equal(t, maxRejectRetries, session.T3580Retries, "no sixth retry is scheduled")
 }
+
+// A session requested on the control socket keeps the reject cause for its client,
+// and is not requested again.
+func TestControlledSessionRejectIsReportedNotRetried(t *testing.T) {
+	ue := newTestUE(t)
+	session, err := ue.CreatePDUSessionWithId(3)
+	require.NoError(t, err)
+	session.Controlled = true
+	session.SetStateSM_PDU_SESSION_PENDING()
+
+	handleEstablishmentReject(ue, reject(session.Id))
+
+	assert.Equal(t, "Insufficient resources (#26)", session.RejectCause)
+	assert.Zero(t, session.T3580Retries)
+	select {
+	case <-ue.Deferred():
+		t.Fatal("a controlled session must not be retried")
+	case <-time.After(1500 * time.Millisecond):
+	}
+}

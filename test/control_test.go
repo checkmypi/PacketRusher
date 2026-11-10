@@ -90,6 +90,18 @@ func registered(gnbId string) procedures.UeStatus {
 	return procedures.UeStatus{UeId: 1, State: "registered", GnbId: gnbId, Connected: true, Ready: true, PduSessions: []int{1, 2}}
 }
 
+// withoutSessions checks that every PDU session of status is active with an address,
+// then drops their details, which depend on the addresses the mock core gave.
+func withoutSessions(t *testing.T, status procedures.UeStatus) procedures.UeStatus {
+	t.Helper()
+	for _, session := range status.Sessions {
+		require.Equal(t, "active", session.State, session)
+		require.NotEmpty(t, session.Ip, session)
+	}
+	status.Sessions = nil
+	return status
+}
+
 func TestControlSocket(t *testing.T) {
 	socket, fiveGC := startControlTest(t, "127.0.0.1:9491", "127.0.0.1:2156", "127.0.0.1:38416")
 
@@ -100,7 +112,7 @@ func TestControlSocket(t *testing.T) {
 
 	response, err = control.Call(socket, control.Request{UeId: 1, Action: "wait"})
 	require.NoError(t, err)
-	require.Equal(t, registered("000008"), response.Ues[0])
+	require.Equal(t, registered("000008"), withoutSessions(t, response.Ues[0]))
 
 	// Actions the UE is not in a state for are refused, and leave it as it was.
 	for _, refused := range []control.Request{
@@ -116,7 +128,7 @@ func TestControlSocket(t *testing.T) {
 
 	response, err = control.Call(socket, control.Request{UeId: 1, Action: "xn-handover", Target: "000009"})
 	require.NoError(t, err)
-	require.Equal(t, registered("000009"), response.Ues[0])
+	require.Equal(t, registered("000009"), withoutSessions(t, response.Ues[0]))
 
 	response, err = control.Call(socket, control.Request{UeId: 1, Action: "deregister"})
 	require.NoError(t, err)
@@ -149,7 +161,7 @@ func TestRunScenario(t *testing.T) {
 	]}`))
 	response, err := control.Call(socket, control.Request{UeId: 1, Action: "inspect"})
 	require.NoError(t, err)
-	require.Equal(t, registered("000008"), response.Ues[0])
+	require.Equal(t, registered("000008"), withoutSessions(t, response.Ues[0]))
 
 	// A scenario stops at its first failing step, and runs none when one is invalid.
 	require.ErrorContains(t, run(`{"steps": [{"ue": 1, "action": "reconnect"}, {"ue": 1, "action": "deregister"}]}`), "step 1")
@@ -159,4 +171,47 @@ func TestRunScenario(t *testing.T) {
 	response, err = control.Call(socket, control.Request{UeId: 1, Action: "inspect"})
 	require.NoError(t, err)
 	require.Equal(t, "registered", response.Ues[0].State)
+}
+
+func TestControlPduSessions(t *testing.T) {
+	socket, _ := startControlTest(t, "127.0.0.1:9495", "127.0.0.1:2160", "127.0.0.1:38420")
+	response, err := control.Call(socket, control.Request{UeId: 1, Action: "wait", TimeoutMs: 30000})
+	require.NoError(t, err)
+	seen := map[string]bool{}
+	for _, session := range response.Ues[0].Sessions {
+		seen[session.Ip] = true
+	}
+	require.Len(t, seen, 2)
+
+	// Releasing then establishing again, by default the lowest session and the
+	// lowest free ID, gives each new session an address not given before.
+	for cycle := 0; cycle < 3; cycle++ {
+		response, err = control.Call(socket, control.Request{UeId: 1, Action: "pdu-release"})
+		require.NoError(t, err)
+		require.Equal(t, 1, response.Ues[0].ActionPduSession)
+		require.Equal(t, []int{2}, response.Ues[0].PduSessions)
+
+		response, err = control.Call(socket, control.Request{UeId: 1, Action: "pdu-establish"})
+		require.NoError(t, err)
+		require.Equal(t, 1, response.Ues[0].ActionPduSession)
+		require.Equal(t, []int{1, 2}, response.Ues[0].PduSessions)
+		ip := response.Ues[0].Sessions[0].Ip
+		require.False(t, seen[ip], "address %s given twice", ip)
+		seen[ip] = true
+	}
+
+	// A chosen ID, and refusals that leave the UE as it was.
+	response, err = control.Call(socket, control.Request{UeId: 1, Action: "pdu-establish", PduSession: 7})
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 7}, response.Ues[0].PduSessions)
+	for _, refused := range []control.Request{
+		{UeId: 1, Action: "pdu-establish", PduSession: 7},
+		{UeId: 1, Action: "pdu-release", PduSession: 9},
+	} {
+		_, err = control.Call(socket, refused)
+		require.Error(t, err, refused)
+	}
+	response, err = control.Call(socket, control.Request{UeId: 1, Action: "pdu-release", PduSession: 7})
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2}, response.Ues[0].PduSessions)
 }
