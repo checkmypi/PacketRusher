@@ -121,7 +121,8 @@ func DispatchNas(ue *context.UEContext, packet []byte) {
 	case *nas.AuthRej:
 		handler.HandlerAuthenticationReject(ue, m)
 	case *nas.IdReq:
-		handler.HandlerIdentityRequest(ue, m)
+		protected := nas.GetSecHdrType(packet) != nas.SecHdrTypePlainNas
+		handler.HandlerIdentityRequest(ue, m, protected)
 	case *nas.SecModeCmd:
 		handler.HandlerSecurityModeCommand(ue, m)
 	case *nas.RegAccept:

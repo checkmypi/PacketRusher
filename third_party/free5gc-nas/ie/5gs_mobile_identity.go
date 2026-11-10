@@ -619,8 +619,8 @@ func (i *MobileId5GS) marshalBinary_IMEI() ([]byte, error) {
 	if err = setImeiImeisv14(sl, b); err != nil {
 		return nil, errors.Wrap(err, "marshalBinary_IMEI set imeisv")
 	}
-	if sl[14] == 0 {
-		// Even-length IMEI: pad the last nibble with 0xF as per 3GPP spec
+	if sl[14] == 0 && i.OddEvenIndic != OddNumOfIdDigit {
+		// Even-length IMEI (a 15-digit IMEI whose last digit is 0 sets OddEvenIndic): pad the last nibble with 0xF as per 3GPP spec
 		b[7] = Set4Bits85(b[7], 0xf)
 	} else {
 		// Odd-length IMEI: set odd/even indicator and use the actual 15th digit

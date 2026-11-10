@@ -140,11 +140,15 @@ func InitDeregistration(ue *context.UEContext) {
 	ue.SetStateMM_DEREGISTERED()
 }
 
-func InitIdentifyResponse(ue *context.UEContext) {
-	log.Info(ue.LogTag() + " Initiating Identify Response")
+func InitIdentifyResponse(ue *context.UEContext, idType uint8, protected bool) {
+	log.Info(ue.LogTag() + " Initiating Identify Response (" + nasMessage.IdType5GSStr(idType) + ")")
 
 	// trigger identity response.
-	identityResponse := mm_5gs.IdentityResponse(ue)
+	identityResponse, err := mm_5gs.IdentityResponseFor(ue, idType, protected)
+	if err != nil {
+		log.Error(ue.LogTag()+"[NAS] Error building Identity Response: ", err)
+		return
+	}
 
 	// send to GNB.
 	sender.SendToGnb(ue, identityResponse)

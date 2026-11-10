@@ -150,12 +150,19 @@ func HandlerDlNasTransportPduaccept(ue *context.UEContext, msg *nas.DLNASTranspo
 	}
 }
 
-func HandlerIdentityRequest(ue *context.UEContext, msg *nas.IdReq) {
-	if msg.IdType == nil || msg.IdType.IdType != ie.IdType_5GS_SUCI {
-		log.Error(ue.LogTag() + "[NAS] Only SUCI identity requests are supported")
+// HandlerIdentityRequest answers SUCI, IMEI and IMEISV requests; protected tells whether the
+// request arrived under a NAS security context, so the response is protected the same way.
+func HandlerIdentityRequest(ue *context.UEContext, msg *nas.IdReq, protected bool) {
+	if msg.IdType == nil {
+		log.Error(ue.LogTag() + "[NAS] Identity Request without identity type")
 		return
 	}
-	trigger.InitIdentifyResponse(ue)
+	switch msg.IdType.IdType {
+	case ie.IdType_5GS_SUCI, ie.IdType_5GS_IMEI, ie.IdType_5GS_IMEISV:
+		trigger.InitIdentifyResponse(ue, msg.IdType.IdType, protected)
+	default:
+		log.Error(ue.LogTag() + "[NAS] Only SUCI, IMEI and IMEISV identity requests are supported, got " + ie.IdType5GSStr(msg.IdType.IdType))
+	}
 }
 func HandlerConfigurationUpdateCommand(ue *context.UEContext, msg *nas.CfgUpdateCmd) {
 	trigger.InitConfigurationUpdateComplete(ue)
