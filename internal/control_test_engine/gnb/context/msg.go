@@ -23,6 +23,7 @@ type UEMessage struct {
 	ConnectionClosed  bool
 	ConnectionLost    chan struct{} // closed only when this logical connection fails
 	PrUeId            int64
+	LogTag            string // of the UE, e.g. [UE1/0120], prefixing the log lines about it
 	Tmsi              *nasType.MobileId5GS
 	Mcc               string
 	Mnc               string

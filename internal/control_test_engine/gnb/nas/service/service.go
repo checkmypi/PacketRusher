@@ -51,6 +51,7 @@ func gnbListen(gnb *context.GNBContext) {
 			ue.SetConnectionLost(message.ConnectionLost)
 			ue.SetGnbRx(message.GNBRx)
 			ue.SetGnbTx(message.GNBTx)
+			ue.SetLogTag(message.LogTag)
 
 			// We enable the new PDU Session handed over to us
 			msg := context.UEMessage{GNBPduSessions: ue.GetPduSessions(), GnbIp: gnb.GetN3GnbIp(), GtpDevice: gnb.GetGtpDevice()}
@@ -72,6 +73,7 @@ func gnbListen(gnb *context.GNBContext) {
 				}
 				continue
 			}
+			ue.SetLogTag(message.LogTag)
 			if message.UEContext != nil && message.IsHandover {
 				// Xn Handover
 				log.Info("[GNB] Received incoming handover for UE from another gNodeB")

@@ -160,13 +160,13 @@ func HandlerInitialContextSetupRequest(gnb *context.GNBContext, message *ngapmsg
 	ue.CreateUeContext(mobilityRestrict, maskedImeisv, sst, sd, ueSecurityCapabilities)
 
 	// show UE context.
-	log.Info("[GNB][UE] UE Context was created with successful")
-	log.Info("[GNB][UE] UE RAN ID ", ue.GetRanUeId())
-	log.Info("[GNB][UE] UE AMF ID ", ue.GetAmfUeId())
+	log.Info("[GNB]" + ue.LogTag() + " UE Context was created with successful")
+	log.Info("[GNB]"+ue.LogTag()+" UE RAN ID ", ue.GetRanUeId())
+	log.Info("[GNB]"+ue.LogTag()+" UE AMF ID ", ue.GetAmfUeId())
 	mcc, mnc := ue.GetUeMobility()
-	log.Info("[GNB][UE] UE Mobility Restrict --Plmn-- Mcc: ", mcc, " Mnc: ", mnc)
-	log.Info("[GNB][UE] UE Masked Imeisv: ", ue.GetUeMaskedImeiSv())
-	log.Info("[GNB][UE] Allowed Nssai-- Sst: ", sst, " Sd: ", sd)
+	log.Info("[GNB]"+ue.LogTag()+" UE Mobility Restrict --Plmn-- Mcc: ", mcc, " Mnc: ", mnc)
+	log.Info("[GNB]"+ue.LogTag()+" UE Masked Imeisv: ", ue.GetUeMaskedImeiSv())
+	log.Info("[GNB]"+ue.LogTag()+" Allowed Nssai-- Sst: ", sst, " Sd: ", sd)
 
 	if messageNas != nil {
 		sender.SendToUe(ue, messageNas)
@@ -390,17 +390,17 @@ func HandlerPduSessionResourceSetupRequest(gnb *context.GNBContext, message *nga
 		}
 		configuredPduSessions = append(configuredPduSessions, pduSession)
 
-		log.Info("[GNB][NGAP][UE] PDU Session was created with successful.")
-		log.Info("[GNB][NGAP][UE] PDU Session Id: ", pduSession.GetPduSessionId())
+		log.Info("[GNB][NGAP]" + ue.LogTag() + " PDU Session was created with successful.")
+		log.Info("[GNB][NGAP]"+ue.LogTag()+" PDU Session Id: ", pduSession.GetPduSessionId())
 		sst, sd = ue.GetSelectedNssai(pduSession.GetPduSessionId())
-		log.Info("[GNB][NGAP][UE] NSSAI Selected --- sst: ", sst, " sd: ", sd)
-		log.Info("[GNB][NGAP][UE] PDU Session Type: ", pduSession.GetPduType())
-		log.Info("[GNB][NGAP][UE] QOS Flow Identifier: ", pduSession.GetQosId())
-		log.Info("[GNB][NGAP][UE] Uplink Teid: ", pduSession.GetTeidUplink())
-		log.Info("[GNB][NGAP][UE] Downlink Teid: ", pduSession.GetTeidDownlink())
-		log.Info("[GNB][NGAP][UE] Non-Dynamic-5QI: ", pduSession.GetFiveQI())
-		log.Info("[GNB][NGAP][UE] Priority Level ARP: ", pduSession.GetPriorityARP())
-		log.Info("[GNB][NGAP][UE] UPF Address: ", fmt.Sprintf("%d.%d.%d.%d", upfAddress[0], upfAddress[1], upfAddress[2], upfAddress[3]), " :2152")
+		log.Info("[GNB][NGAP]"+ue.LogTag()+" NSSAI Selected --- sst: ", sst, " sd: ", sd)
+		log.Info("[GNB][NGAP]"+ue.LogTag()+" PDU Session Type: ", pduSession.GetPduType())
+		log.Info("[GNB][NGAP]"+ue.LogTag()+" QOS Flow Identifier: ", pduSession.GetQosId())
+		log.Info("[GNB][NGAP]"+ue.LogTag()+" Uplink Teid: ", pduSession.GetTeidUplink())
+		log.Info("[GNB][NGAP]"+ue.LogTag()+" Downlink Teid: ", pduSession.GetTeidDownlink())
+		log.Info("[GNB][NGAP]"+ue.LogTag()+" Non-Dynamic-5QI: ", pduSession.GetFiveQI())
+		log.Info("[GNB][NGAP]"+ue.LogTag()+" Priority Level ARP: ", pduSession.GetPriorityARP())
+		log.Info("[GNB][NGAP]"+ue.LogTag()+" UPF Address: ", fmt.Sprintf("%d.%d.%d.%d", upfAddress[0], upfAddress[1], upfAddress[2], upfAddress[3]), " :2152")
 
 		// send NAS message to UE if present.
 		if messageNas != nil {
@@ -1173,7 +1173,7 @@ func HandlerHandoverCommand(amf *context.GNBAmf, gnb *context.GNBContext, messag
 	newGnbRx := make(chan context.UEMessage, 1)
 	newGnbTx := make(chan context.UEMessage, 1)
 	connectionLost := make(chan struct{})
-	newGnb.GetInboundChannel() <- context.UEMessage{GNBRx: newGnbRx, GNBTx: newGnbTx, ConnectionLost: connectionLost, PrUeId: ue.GetPrUeId(), IsHandover: true}
+	newGnb.GetInboundChannel() <- context.UEMessage{GNBRx: newGnbRx, GNBTx: newGnbTx, ConnectionLost: connectionLost, PrUeId: ue.GetPrUeId(), LogTag: ue.LogTag(), IsHandover: true}
 
 	msg := context.UEMessage{GNBRx: newGnbRx, GNBTx: newGnbTx, ConnectionLost: connectionLost, GNBInboundChannel: newGnb.GetInboundChannel()}
 

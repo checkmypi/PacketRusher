@@ -22,7 +22,7 @@ func InitConn(ue *context.UEContext, gnbInboundChannel chan gnbContext.UEMessage
 	ue.SetGnbConnectionLost(lost)
 
 	// Send channels to gNB
-	gnbInboundChannel <- gnbContext.UEMessage{GNBTx: ue.GetGnbTx(), GNBRx: ue.GetGnbRx(), PrUeId: ue.GetPrUeId(), Tmsi: ue.Get5gGuti(), ConnectionLost: lost}
+	gnbInboundChannel <- gnbContext.UEMessage{GNBTx: ue.GetGnbTx(), GNBRx: ue.GetGnbRx(), PrUeId: ue.GetPrUeId(), LogTag: ue.LogTag(), Tmsi: ue.Get5gGuti(), ConnectionLost: lost}
 
 	// Use timeout to prevent blocking indefinitely
 	select {

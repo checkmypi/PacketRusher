@@ -35,7 +35,7 @@ var (
 // run applies the rules of one UE to the gtp5g device name, under the identifiers
 // ids: a FAR and a PDR per direction. Its uplink is marked with the QFI of the QER
 // qer, if not 0; c.qer is nil when that QER is not the UE's own to create.
-func (c gtp5gCommands) run(name string, ids gtp.RuleIDs, qer uint32, pdu *gnbContext.GnbPDUSession, ueIP string, gnbIP netip.Addr) error {
+func (c gtp5gCommands) run(logTag, name string, ids gtp.RuleIDs, qer uint32, pdu *gnbContext.GnbPDUSession, ueIP string, gnbIP netip.Addr) error {
 	id := func(n uint32) string { return strconv.FormatUint(uint64(n), 10) }
 	type rule struct {
 		command func([]string) error
@@ -62,7 +62,7 @@ func (c gtp5gCommands) run(name string, ids gtp.RuleIDs, qer uint32, pdu *gnbCon
 		}
 	}
 	for _, r := range append(rules, rule{c.pdr, uplink}) {
-		log.Debug("[UE][GTP] GTP rule ", strings.Join(r.args, " "))
+		log.Debug(logTag, "[GTP] GTP rule ", strings.Join(r.args, " "))
 		if err := r.command(r.args); err != nil {
 			return fmt.Errorf("GTP rule %s: %w", strings.Join(r.args, " "), err)
 		}
@@ -72,9 +72,10 @@ func (c gtp5gCommands) run(name string, ids gtp.RuleIDs, qer uint32, pdu *gnbCon
 
 // gtp5gLink is the gtp5g datapath of a UE that has a device of its own.
 type gtp5gLink struct {
-	name string
-	stop chan bool
-	done chan struct{} // closed once the goroutine holding the GTP-U socket has returned
+	name   string
+	logTag string
+	stop   chan bool
+	done   chan struct{} // closed once the goroutine holding the GTP-U socket has returned
 }
 
 // dedicatedQER is the UE's own QER on its device, if its flow has a QFI to mark.
@@ -85,11 +86,11 @@ func dedicatedQER(pdu *gnbContext.GnbPDUSession) uint32 {
 	return 0
 }
 
-func startGtp5g(name string, pdu *gnbContext.GnbPDUSession, ueIP string, ip netip.Addr) (datapath, error) {
+func startGtp5g(logTag, name string, pdu *gnbContext.GnbPDUSession, ueIP string, ip netip.Addr) (datapath, error) {
 	if ueIP == "" {
 		return nil, errNoIPv6
 	}
-	t := &gtp5gLink{name: name, stop: make(chan bool), done: make(chan struct{})}
+	t := &gtp5gLink{name: name, logTag: logTag, stop: make(chan bool), done: make(chan struct{})}
 	ended := make(chan error, 1)
 	go func() {
 		defer close(t.done)
@@ -110,7 +111,7 @@ func startGtp5g(name string, pdu *gnbContext.GnbPDUSession, ueIP string, ip neti
 			return nil, fmt.Errorf("GTP device %s did not appear within 5s", name)
 		}
 	}
-	if err := createRules.run(name, gtp.DedicatedRuleIDs(), dedicatedQER(pdu), pdu, ueIP, ip); err != nil {
+	if err := createRules.run(logTag, name, gtp.DedicatedRuleIDs(), dedicatedQER(pdu), pdu, ueIP, ip); err != nil {
 		t.close()
 		return nil, err
 	}
@@ -119,7 +120,7 @@ func startGtp5g(name string, pdu *gnbContext.GnbPDUSession, ueIP string, ip neti
 
 // refresh modifies the rules in place: the device and its socket stay.
 func (t *gtp5gLink) refresh(pdu *gnbContext.GnbPDUSession, ueIP string, ip netip.Addr) error {
-	return modifyRules.run(t.name, gtp.DedicatedRuleIDs(), dedicatedQER(pdu), pdu, ueIP, ip)
+	return modifyRules.run(t.logTag, t.name, gtp.DedicatedRuleIDs(), dedicatedQER(pdu), pdu, ueIP, ip)
 }
 
 func (t *gtp5gLink) close() {
@@ -127,7 +128,7 @@ func (t *gtp5gLink) close() {
 	// The goroutine owns the GTP-U socket, even once the device is gone: no other
 	// session can bind the N3 address before it has returned.
 	<-t.done
-	removeLink(t.name)
+	removeLink(t.logTag, t.name)
 }
 
 func (t *gtp5gLink) solicit(netip.Addr) (netip.Addr, error) {
@@ -137,16 +138,17 @@ func (t *gtp5gLink) solicit(netip.Addr) (netip.Addr, error) {
 // sharedRules is the gtp5g datapath of a UE on the device its gNB shares among its
 // UEs: the UE's rules on that device, which also holds its address.
 type sharedRules struct {
-	dev  *gtp.Device
-	ids  gtp.RuleIDs
-	ueIP string
+	dev    *gtp.Device
+	ids    gtp.RuleIDs
+	ueIP   string
+	logTag string
 }
 
-func startShared(dev *gtp.Device, pdu *gnbContext.GnbPDUSession, ueIP string, ip netip.Addr) (datapath, error) {
+func startShared(logTag string, dev *gtp.Device, pdu *gnbContext.GnbPDUSession, ueIP string, ip netip.Addr) (datapath, error) {
 	if dev == nil {
 		return nil, errors.New("the gNB has no shared GTP-U device")
 	}
-	s := &sharedRules{dev: dev, ueIP: ueIP}
+	s := &sharedRules{dev: dev, ueIP: ueIP, logTag: logTag}
 	var err error
 	if s.ids, err = s.addRules(pdu, ip); err != nil {
 		return nil, err
@@ -180,7 +182,7 @@ func (s *sharedRules) addRules(pdu *gnbContext.GnbPDUSession, ip netip.Addr) (gt
 		}
 	}
 	// Through the device's long-lived netlink client, rather than one per command.
-	err = gtp5gCommands{far: s.dev.AddFAR, pdr: s.dev.AddPDR}.run(s.dev.Name(), ids, qer, pdu, s.ueIP, ip)
+	err = gtp5gCommands{far: s.dev.AddFAR, pdr: s.dev.AddPDR}.run(s.logTag, s.dev.Name(), ids, qer, pdu, s.ueIP, ip)
 	if err != nil {
 		s.dev.Release(ids)
 	}

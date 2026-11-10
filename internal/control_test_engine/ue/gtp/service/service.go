@@ -52,6 +52,7 @@ type tunnel struct {
 	table    int              // the UE's routing table
 	rules    []*netlink.Rule  // to it, from the UE's addresses, unless the VRF leads there
 	routes   []*netlink.Route // its default routes, through link
+	logTag   string           // of the UE, e.g. [UE1/0120], prefixing its log lines
 }
 
 // SetupGtpInterface sets up the tunnel of the UE's PDU session, or updates it after
@@ -100,7 +101,7 @@ func setupTunnel(ue *context.UEContext, pduSession *context.UEPDUSession, msg gn
 	}
 
 	if t == nil {
-		t = &tunnel{}
+		t = &tunnel{logTag: ue.LogTag()}
 		defer func() {
 			if err != nil {
 				t.Release()
@@ -120,15 +121,15 @@ func setupTunnel(ue *context.UEContext, pduSession *context.UEPDUSession, msg gn
 	var d datapath
 	switch { // The only place that depends on the tunnel backend.
 	case ue.TunnelMode == config.TunnelShared:
-		if d, err = startShared(msg.GtpDevice, pdu, ueIP, msg.GnbIp); err == nil {
+		if d, err = startShared(t.logTag, msg.GtpDevice, pdu, ueIP, msg.GnbIp); err == nil {
 			name = msg.GtpDevice.Name()
 		}
 	case ue.TunnelBackend == config.TunnelBackendEBPF:
-		d, err = startEBPF(name, pdu, pduSession, msg.GnbIp)
+		d, err = startEBPF(t.logTag, name, pdu, pduSession, msg.GnbIp)
 	case ue.TunnelBackend == config.TunnelBackendUserspace:
-		d, err = startUserspace(name, pdu, pduSession, msg.GnbIp)
+		d, err = startUserspace(t.logTag, name, pdu, pduSession, msg.GnbIp)
 	default:
-		d, err = startGtp5g(name, pdu, ueIP, msg.GnbIp)
+		d, err = startGtp5g(t.logTag, name, pdu, ueIP, msg.GnbIp)
 	}
 	if err != nil {
 		return err
@@ -201,7 +202,7 @@ func (t *tunnel) create(ue *context.UEContext, pduSession *context.UEPDUSession)
 	} else {
 		// A run that was killed left its devices behind: they would refuse the new ones.
 		for _, device := range []string{"gtp0", "gtp1", "val", "vrf"} {
-			removeLink(device + msin)
+			removeLink(t.logTag, device+msin)
 		}
 		endpoint := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: "val" + msin}}
 		if err := netlink.LinkAdd(endpoint); err != nil {
@@ -300,12 +301,12 @@ func (t *tunnel) Release() {
 	for _, route := range t.routes {
 		// ESRCH: it was never installed, or went with its device.
 		if err := netlink.RouteDel(route); err != nil && !errors.Is(err, syscall.ESRCH) {
-			log.Warn("[UE][GTP] Unable to remove route ", route, ": ", err)
+			log.Warn(t.logTag, "[GTP] Unable to remove route ", route, ": ", err)
 		}
 	}
 	for _, rule := range t.rules {
 		if err := netlink.RuleDel(rule); err != nil {
-			log.Warn("[UE][GTP] Unable to remove ", rule, ": ", err)
+			log.Warn(t.logTag, "[GTP] Unable to remove ", rule, ": ", err)
 		}
 	}
 	t.leave(t.left)
@@ -313,18 +314,19 @@ func (t *tunnel) Release() {
 		t.datapath.close()
 	}
 	if t.endpoint != nil {
-		removeLink(t.endpoint.Attrs().Name)
+		removeLink(t.logTag, t.endpoint.Attrs().Name)
 	}
 	if t.vrf != nil {
-		removeLink(t.vrf.Name)
+		removeLink(t.logTag, t.vrf.Name)
 	}
 }
 
-// removeLink removes the device name, if there is one.
-func removeLink(name string) {
+// removeLink removes the device name, if there is one, logging a failure with the
+// UE's logTag.
+func removeLink(logTag, name string) {
 	if link, err := netlink.LinkByName(name); err == nil {
 		if err := netlink.LinkDel(link); err != nil {
-			log.Warn("[UE][GTP] Unable to remove ", name, ": ", err)
+			log.Warn(logTag, "[GTP] Unable to remove ", name, ": ", err)
 		}
 	}
 }

@@ -513,7 +513,7 @@ func (gnb *GNBContext) Terminate() {
 
 	// close all connections
 	close(gnb.GetInboundChannel())
-	log.Info("[GNB][UE] NAS channel Terminated")
+	log.Info("[GNB] NAS channel Terminated")
 
 	for _, conn := range conns {
 		if conn != nil {

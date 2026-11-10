@@ -41,12 +41,12 @@ func userspaceConfig(pdu *gnbContext.GnbPDUSession, session *context.UEPDUSessio
 	return userspace.Config{UPF: upf, UplinkTEID: pdu.GetTeidUplink(), DownlinkTEID: pdu.GetTeidDownlink(), QFI: uint8(qfi), UE: ue, Prefix: prefix}, nil
 }
 
-func startUserspace(name string, pdu *gnbContext.GnbPDUSession, ue *context.UEPDUSession, ip netip.Addr) (datapath, error) {
+func startUserspace(logTag, name string, pdu *gnbContext.GnbPDUSession, ue *context.UEPDUSession, ip netip.Addr) (datapath, error) {
 	config, err := userspaceConfig(pdu, ue)
 	if err != nil {
 		return nil, err
 	}
-	session, err := userspace.Open(name, ip, config)
+	session, err := userspace.Open(logTag, name, ip, config)
 	if err != nil {
 		return nil, err
 	}

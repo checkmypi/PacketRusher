@@ -30,7 +30,8 @@ type GNBUe struct {
 	sctpConnection *sctp.SCTPConn // Sctp association in using by the UE.
 	gnbRx          chan UEMessage
 	gnbTx          chan UEMessage
-	pRueId         int64 // PacketRusher unique UE ID
+	pRueId         int64                  // PacketRusher unique UE ID
+	logTag         atomic.Pointer[string] // of the UE, e.g. [UE1/0120], prefixing the log lines about it
 	tmsi           *nasType.MobileId5GS
 	context        Context
 	// contextMu protects session membership and the payload copied during Xn
@@ -309,6 +310,23 @@ func (ue *GNBUe) SetPrUeId(pRueId int64) {
 
 func (ue *GNBUe) GetPrUeId() int64 {
 	return ue.pRueId
+}
+
+// SetLogTag keeps the log tag the UE gave, unless it gave none. After an NGAP
+// handover the UE gives it once its context exists, while NGAP may log about it.
+func (ue *GNBUe) SetLogTag(logTag string) {
+	if logTag != "" {
+		ue.logTag.Store(&logTag)
+	}
+}
+
+// LogTag returns the prefix of the log lines about the UE, "[UE]" until the UE
+// has given its own.
+func (ue *GNBUe) LogTag() string {
+	if logTag := ue.logTag.Load(); logTag != nil {
+		return *logTag
+	}
+	return "[UE]"
 }
 
 func (ue *GNBUe) SetTMSI(tmsi *nasType.MobileId5GS) {

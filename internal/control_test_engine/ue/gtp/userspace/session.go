@@ -32,6 +32,7 @@ type Config struct {
 // Session carries the packets of one UE between its TUN device and the UPF.
 type Session struct {
 	name     string
+	logTag   string // of the UE, prefixing the session's log lines
 	tun      *os.File
 	endpoint *endpoint
 	config   atomic.Pointer[Config]
@@ -55,15 +56,15 @@ var (
 )
 
 // Open creates the TUN device name and carries its packets over GTP-U between the
-// N3 address local and the UPF.
-func Open(name string, local netip.Addr, c Config) (*Session, error) {
+// N3 address local and the UPF. logTag, the UE's, prefixes its log lines.
+func Open(logTag, name string, local netip.Addr, c Config) (*Session, error) {
 	// The device goes away with its file, and no other process may attach to it.
 	tun := &netlink.Tuntap{LinkAttrs: netlink.LinkAttrs{Name: name}, Mode: netlink.TUNTAP_MODE_TUN,
 		Flags: netlink.TUNTAP_NO_PI | netlink.TUNTAP_TUN_EXCL, Queues: 1, NonPersist: true}
 	if err := netlink.LinkAdd(tun); err != nil {
 		return nil, err
 	}
-	s := &Session{name: name, tun: tun.Fds[0], done: make(chan struct{}), prefixes: make(chan netip.Prefix, 1)}
+	s := &Session{name: name, logTag: logTag, tun: tun.Fds[0], done: make(chan struct{}), prefixes: make(chan netip.Prefix, 1)}
 	s.config.Store(&c)
 	if err := netlink.LinkSetUp(tun); err != nil {
 		s.tun.Close()
@@ -145,7 +146,7 @@ func (e *endpoint) receive() {
 		n, peer, err := e.conn.ReadFromUDPAddrPort(buf)
 		if err != nil {
 			if !errors.Is(err, net.ErrClosed) {
-				log.Warn("[UE][GTP] N3 socket of ", e.local, " stopped receiving: ", err)
+				log.Warn("[GNB][GTP] N3 socket of ", e.local, " stopped receiving: ", err)
 			}
 			return
 		}
@@ -222,6 +223,6 @@ func (s *Session) Solicit(linkLocal netip.Addr) (netip.Addr, error) {
 // warn logs the first datapath error of a session that is not being closed.
 func (s *Session) warn(action string, err error) {
 	if !errors.Is(err, os.ErrClosed) && !errors.Is(err, net.ErrClosed) {
-		s.warned.Do(func() { log.Warn("[UE][GTP] ", s.name, ": ", action, ": ", err) })
+		s.warned.Do(func() { log.Warn(s.logTag, "[GTP] ", s.name, ": ", action, ": ", err) })
 	}
 }

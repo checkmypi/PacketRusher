@@ -19,8 +19,8 @@ type ebpfTunnel struct {
 	name string
 }
 
-func startEBPF(name string, pdu *gnbContext.GnbPDUSession, ue *context.UEPDUSession, ip netip.Addr) (datapath, error) {
-	tunnel, err := startUserspace(name, pdu, ue, ip)
+func startEBPF(logTag, name string, pdu *gnbContext.GnbPDUSession, ue *context.UEPDUSession, ip netip.Addr) (datapath, error) {
+	tunnel, err := startUserspace(logTag, name, pdu, ue, ip)
 	if err != nil {
 		return nil, err
 	}

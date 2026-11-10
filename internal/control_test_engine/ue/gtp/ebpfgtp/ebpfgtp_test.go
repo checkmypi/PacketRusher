@@ -32,7 +32,7 @@ func TestLoadAndAttach(t *testing.T) {
 	t.Cleanup(Close)
 
 	config := userspace.Config{UPF: netip.MustParseAddr("192.0.2.2"), UplinkTEID: 1, DownlinkTEID: 2, QFI: 9}
-	session, err := userspace.Open("tuntest", n3, config)
+	session, err := userspace.Open("[UE]", "tuntest", n3, config)
 	require.NoError(t, err)
 	t.Cleanup(session.Close)
 	require.NoError(t, Attach("tuntest", n3, config))

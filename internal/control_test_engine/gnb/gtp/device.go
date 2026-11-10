@@ -320,9 +320,9 @@ func (d *Device) EnsureQER(qfi int64, create func(id uint32) error) (uint32, boo
 	if err := create(q.id); err != nil && !errors.Is(err, syscall.EEXIST) {
 		q.failures++
 		if q.failures < maxQERAttempts {
-			log.Error("[UE][GTP] Unable to create the shared QER for QFI ", qfi, ", will retry: ", err)
+			log.Error("[GNB][GTP] Unable to create the shared QER for QFI ", qfi, ", will retry: ", err)
 		} else {
-			log.Error("[UE][GTP] Unable to create the shared QER for QFI ", qfi, " after ", q.failures,
+			log.Error("[GNB][GTP] Unable to create the shared QER for QFI ", qfi, " after ", q.failures,
 				" attempts; UEs with this QFI will carry no QFI marking on the uplink: ", err)
 		}
 
@@ -456,7 +456,7 @@ func (d *Device) giveBack(ids RuleIDs) {
 // is not reused: its identifiers are still occupied.
 func (d *Device) Release(ids RuleIDs) {
 	if err := d.removeRules(ids); err != nil {
-		log.Warn("[UE][GTP] Unable to remove the rules of slot ", ids.Slot, " on ", d.name, "; not reusing it: ", err)
+		log.Warn("[GNB][GTP] Unable to remove the rules of slot ", ids.Slot, " on ", d.name, "; not reusing it: ", err)
 		return
 	}
 
