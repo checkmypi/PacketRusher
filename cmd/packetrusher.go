@@ -121,6 +121,7 @@ func newApp() *cli.App {
 					&cli.BoolFlag{Name: "loop", Aliases: []string{"l"}, Usage: "Register UEs in a loop."},
 					&cli.IntFlag{Name: "loopCount", Value: 0, Aliases: []string{"lc"}, Usage: "The number of times the loop is executed. 0 to loop infinitely."},
 					&cli.IntFlag{Name: "timeBeforeReregistration", Value: 200, Aliases: []string{"tbrr"}, Usage: "The time in ms before the UE registers again after deregistration if UE is looping."},
+					&cli.IntFlag{Name: "timeBeforeRegistration", Value: 0, Aliases: []string{"tbreg"}, Usage: "The time in ms before each UE registers for the very first time. 0 to register immediately."},
 					&cli.BoolFlag{Name: "tunnel", Aliases: []string{"t"}, Usage: "Enable the creation of the GTP-U tunnel interface."},
 					&cli.BoolFlag{Name: "tunnel-vrf", Value: true, Usage: "Enable/disable VRF usage of the GTP-U tunnel interface. Ignored without --dedicatedGnb: UEs sharing a gNB's tunnel device are routed by policy rule."},
 					&cli.BoolFlag{Name: "dedicatedGnb", Aliases: []string{"d"}, Usage: "Enable the creation of a dedicated gNB per UE. Require one IP on N2/N3 per gNB."},
@@ -172,7 +173,7 @@ func newApp() *cli.App {
 							tunnelMode = config.TunnelTun
 						}
 					}
-					return templates.TestMultiUesInQueue(numUes, tunnelMode, tunnelBackend, c.Bool("dedicatedGnb"), c.Bool("loop"), c.Int("loopCount"), c.Int("timeBeforeReregistration"), c.Int("timeBetweenRegistration"), c.Int("timeBeforeDeregistration"), c.Int("timeBeforeNgapHandover"), c.Int("timeBeforeXnHandover"), c.Int("timeBeforeIdle"), c.Int("timeBeforeReconnecting"), c.Int("numPduSessions"), c.Int("number-of-gnbs"), c.Path("control-socket"))
+					return templates.TestMultiUesInQueue(numUes, tunnelMode, tunnelBackend, c.Bool("dedicatedGnb"), c.Bool("loop"), c.Int("loopCount"), c.Int("timeBeforeReregistration"), c.Int("timeBeforeRegistration"), c.Int("timeBetweenRegistration"), c.Int("timeBeforeDeregistration"), c.Int("timeBeforeNgapHandover"), c.Int("timeBeforeXnHandover"), c.Int("timeBeforeIdle"), c.Int("timeBeforeReconnecting"), c.Int("numPduSessions"), c.Int("number-of-gnbs"), c.Path("control-socket"))
 				},
 			},
 			{

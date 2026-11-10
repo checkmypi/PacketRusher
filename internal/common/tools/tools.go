@@ -95,6 +95,7 @@ type UESimulationConfig struct {
 	RegistrationLoop         bool
 	LoopCount                int
 	TimeBeforeReregistration int
+	TimeBeforeRegistration   int
 }
 
 // gnbID selects the initial gNB and subsequent handover targets in the same
@@ -170,6 +171,26 @@ func SimulateSingleUE(simConfig UESimulationConfig, wg *sync.WaitGroup) *UESimul
 		// A control deregistration parks the scenario: its UE stays deregistered
 		// until a control registration, whatever the registration loop says.
 		parked := false
+		// Delay the UE's first registration. Global shutdown and control
+		// requests remain receivable while waiting.
+		if simConfig.TimeBeforeRegistration > 0 {
+			log.Info("[TESTER] Delaying first registration of UE ", simConfig.UeId, " by ", simConfig.TimeBeforeRegistration, " ms")
+			start := time.NewTimer(time.Duration(simConfig.TimeBeforeRegistration) * time.Millisecond)
+			for waiting := true; waiting; {
+				select {
+				case <-start.C:
+					waiting = false
+				case msg := <-simulation.commands:
+					if msg.Type == procedures.Terminate || msg.Type == procedures.Kill {
+						start.Stop()
+						return
+					}
+					if msg.Control != nil {
+						msg.Control.Reply <- noUe(msg.Control, "waiting")
+					}
+				}
+			}
+		}
 		for iteration := 1; ; iteration++ {
 			wg.Add(1)
 			ueRx := make(chan procedures.UeTesterMessage)

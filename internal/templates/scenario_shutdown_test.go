@@ -109,6 +109,30 @@ func TestControlIsAnsweredDuringRegistrationLoopDelay(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestFirstRegistrationDelay(t *testing.T) {
+	cfg := fixture.GenerateDefaultConf(netip.MustParseAddrPort("127.0.0.1:9999"), netip.MustParseAddrPort("127.0.0.1:2152"), nil)
+	gnb := &gnbcontext.GNBContext{}
+	gnb.NewRanGnbContext("000008", "999", "70", "000001", "1", "000001", cfg.GNodeB.ControlIF.AddrPort, cfg.GNodeB.DataIF.AddrPort)
+	wg := &sync.WaitGroup{}
+	simulation := tools.SimulateSingleUE(tools.UESimulationConfig{
+		UeId: 1, Gnbs: map[string]*gnbcontext.GNBContext{"000008": gnb}, Cfg: cfg, TimeBeforeRegistration: 60_000,
+	}, wg)
+	status, err := simulation.Control("inspect", "")
+	require.NoError(t, err, "a UE waiting for its first registration must still be inspected")
+	require.Equal(t, "waiting", status.State)
+	_, err = simulation.Control("idle", "")
+	require.Error(t, err)
+	stopSimulationsForTest(t, simulation)
+	select {
+	case <-gnb.GetInboundChannel():
+		t.Fatal("UE connected before its first registration delay elapsed")
+	default:
+	}
+	finished := make(chan struct{})
+	go func() { wg.Wait(); close(finished) }()
+	waitShutdown(t, finished)
+}
+
 func TestScenarioShutdownAfterNormalIdleRelease(t *testing.T) {
 	simulation, connection, _, _ := startShutdownSimulation(t, true, 0)
 	simulation.Send(procedures.UeTesterMessage{Type: procedures.Idle})
