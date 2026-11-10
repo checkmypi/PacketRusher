@@ -141,6 +141,7 @@ type Ue struct {
 	Amf                    string     `yaml:"amf"`
 	Sqn                    string     `yaml:"sqn"`
 	Dnn                    string     `yaml:"dnn"`
+	UeDnns                 []string   `yaml:"uednns"` // DNN per UE: UE n requests UeDnns[(n-1) % len], Dnn when empty
 	ProtectionScheme       int        `yaml:"protectionScheme"`
 	HomeNetworkPublicKey   string     `yaml:"homeNetworkPublicKey"`
 	HomeNetworkPublicKeyID uint8      `yaml:"homeNetworkPublicKeyID"`
@@ -261,6 +262,14 @@ func getDefautlConfigPath() string {
 
 func setLogLevel(cfg Config) {
 	log.SetLevel(cfg.Logs.Level)
+}
+
+// DnnOfUe is the DNN that UE ueId (from 1) requests: UeDnns in turn, or Dnn without UeDnns.
+func (ue *Ue) DnnOfUe(ueId int) string {
+	if len(ue.UeDnns) == 0 || ueId < 1 {
+		return ue.Dnn
+	}
+	return ue.UeDnns[(ueId-1)%len(ue.UeDnns)]
 }
 
 func (config *Config) GetUESecurityCapability() *nasType.UESecCapability {

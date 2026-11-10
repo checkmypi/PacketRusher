@@ -164,8 +164,9 @@ func noUe(request *procedures.ControlRequest, state string) procedures.ControlRe
 func SimulateSingleUE(simConfig UESimulationConfig, wg *sync.WaitGroup) *UESimulation {
 	ueCfg := simConfig.Cfg
 	ueCfg.Ue.Msin = IncrementMsin(simConfig.UeId, simConfig.Cfg.Ue.Msin)
+	ueCfg.Ue.Dnn = simConfig.Cfg.Ue.DnnOfUe(simConfig.UeId)
 	logTag := ueCtx.LogTag(simConfig.UeId, ueCfg.Ue.Msin)
-	log.Info(logTag, " TESTING REGISTRATION USING IMSI ", ueCfg.Ue.Msin, " UE")
+	log.Info(logTag, " TESTING REGISTRATION USING IMSI ", ueCfg.Ue.Msin, " UE on DNN ", ueCfg.Ue.Dnn)
 
 	simulation := &UESimulation{commands: make(chan procedures.UeTesterMessage), done: make(chan struct{})}
 	// Count the scenario before starting it. It may create further UEs after a
